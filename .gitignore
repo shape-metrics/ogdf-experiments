@@ -9,3 +9,7 @@ Makefile
 ogdf_experiments
 /domus
 /OGDF
+/.vscode
+/rome_graphs*
+/output-svgs
+test_results.csv

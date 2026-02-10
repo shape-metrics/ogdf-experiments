@@ -2,21 +2,12 @@
 #define OGDF_DRAWER_H
 
 #include <domus/core/graph/graph.hpp>
+#include <domus/orthogonal/drawing.hpp>
 #include <string>
+#include <utility>
 
-struct OGDFResult {
-  int crossings;
-  int bends;
-  int area;
-  int total_edge_length;
-  int max_edge_length;
-  double edge_length_stddev;
-  int max_bends_per_edge;
-  double bends_stddev;
-};
-
-OGDFResult create_drawing(const UndirectedSimpleGraph &graph,
-                          const std::string svg_output_filename = "",
-                          const std::string gml_output_filename = "");
+std::pair<OrthogonalDrawing, double> make_orthogonal_drawing_ogdf(
+    const UndirectedSimpleGraph& graph,
+    const std::string& svg_output_filename);
 
 #endif
