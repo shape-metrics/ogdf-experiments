@@ -18,11 +18,11 @@
 std::unordered_set<std::string> graphs_already_in_csv;
 
 void save_stats(
-    std::ofstream& results_file,
+    std::ofstream& csv_filename,
     const OrthogonalStats& stats,
     double ogdf_time,
     const std::string& graph_name) {
-    results_file << graph_name << "," << stats.crossings << "," << stats.bends
+    csv_filename << graph_name << "," << stats.crossings << "," << stats.bends
                  << "," << stats.area << "," << stats.total_edge_length << ","
                  << stats.max_edge_length << "," << stats.max_bends_per_edge
                  << "," << stats.edge_length_stddev << "," << stats.bends_stddev
@@ -31,8 +31,8 @@ void save_stats(
 
 void compute_stats_ogdf(
     std::string& folder_path,
-    std::ofstream& results_file,
-    std::string& output_svgs_folder) {
+    std::ofstream& csv_filename,
+    std::string& svgs_folder) {
     auto txt_files = collect_txt_files(folder_path);
     std::atomic<int> number_of_processed_graphs{0};
     std::mutex input_output_lock;
@@ -60,19 +60,14 @@ void compute_stats_ogdf(
                     std::cout << "Processing graph #" << current_number << " - "
                               << graph_filename << std::endl;
                 }
-                const std::string svg_output_filename =
-                    output_svgs_folder + graph_filename + "_ogdf.svg";
-                auto result_ogdf =
-                    make_orthogonal_drawing_ogdf(*graph, svg_output_filename);
-                OrthogonalStats stats =
-                    compute_all_orthogonal_stats(result_ogdf.first);
+                const std::string svg_filename =
+                    svgs_folder + graph_filename + "_ogdf.svg";
+                auto [drawing, time] =
+                    make_orthogonal_drawing_ogdf(*graph, svg_filename);
+                OrthogonalStats stats = compute_all_orthogonal_stats(drawing);
                 {
                     std::lock_guard<std::mutex> lock(input_output_lock);
-                    save_stats(
-                        results_file,
-                        stats,
-                        result_ogdf.second,
-                        graph_filename);
+                    save_stats(csv_filename, stats, time, graph_filename);
                 }
             }
         });
@@ -80,9 +75,8 @@ void compute_stats_ogdf(
     for (auto& t : threads)
         if (t.joinable())
             t.join();
-    std::cout << "All graphs processed." << std::endl;
-    std::cout << "Threads used: " << num_threads << std::endl;
-    std::cout << "Total graphs: " << number_of_processed_graphs.load()
+    std::cout << "All graphs processed.\nThreads used: " << num_threads
+              << "\nTotal graphs: " << number_of_processed_graphs.load()
               << std::endl;
 }
 
@@ -96,45 +90,44 @@ void initialize_csv_file(std::ofstream& result_file) {
 
 void run_stats() {
     std::cout << "Running stats ogdf..." << std::endl;
-    std::string test_results_filename = "test_results.csv";
+    std::string csv_filename = "test_results.csv";
     std::ofstream result_file;
-    if (std::filesystem::exists(test_results_filename)) {
-        std::cout << "File " << test_results_filename << " already exists."
-                  << std::endl;
-        std::cout << "What do you want to do?" << std::endl;
-        std::cout << "1. Overwrite the file" << std::endl;
-        std::cout << "2. Append to the file" << std::endl;
-        std::cout << "3. Abort" << std::endl;
-        std::cout << "Please enter your choice (1/2/3): ";
+    if (std::filesystem::exists(csv_filename)) {
+        std::cout << "File " << csv_filename << " already exists." << std::endl
+                  << "What do you want to do?" << std::endl
+                  << "1. Overwrite the file" << std::endl
+                  << "2. Append to the file" << std::endl
+                  << "3. Abort" << std::endl
+                  << "Please enter your choice (1/2/3): ";
         int choice;
         std::cin >> choice;
         if (choice == 1) {
-            std::filesystem::remove(test_results_filename);
-            result_file.open(test_results_filename);
+            std::filesystem::remove(csv_filename);
+            result_file.open(csv_filename);
             initialize_csv_file(result_file);
         } else if (choice == 2) {
-            auto csv_data = parse_csv(test_results_filename);
+            CSVData csv_data = parse_csv(csv_filename);
             for (const auto& row : csv_data.rows)
                 if (row.size() > 0)
                     graphs_already_in_csv.insert(row[0]);
-            result_file.open(test_results_filename, std::ios_base::app);
+            result_file.open(csv_filename, std::ios_base::app);
         } else {
             std::cout << "Aborting." << std::endl;
             return;
         }
     } else {
-        result_file.open(test_results_filename);
+        result_file.open(csv_filename);
         initialize_csv_file(result_file);
     }
-    std::string output_svgs_folder = "output-svgs/";
-    if (!std::filesystem::exists(output_svgs_folder))
-        if (!std::filesystem::create_directories(output_svgs_folder)) {
-            std::cerr << "Error: Could not create directory "
-                      << output_svgs_folder << std::endl;
+    std::string svgs_folder = "output-svgs/";
+    if (!std::filesystem::exists(svgs_folder))
+        if (!std::filesystem::create_directories(svgs_folder)) {
+            std::cerr << "Error: Could not create directory " << svgs_folder
+                      << std::endl;
             return;
         }
-    std::string test_graphs_folder = "rome_graphs/";
-    compute_stats_ogdf(test_graphs_folder, result_file, output_svgs_folder);
+    std::string graphs_folder = "rome_graphs/";
+    compute_stats_ogdf(graphs_folder, result_file, svgs_folder);
     std::cout << std::endl;
     result_file.close();
 }
